@@ -8,10 +8,10 @@
 #include <stdbool.h>
 
 //---- Usability ease Changing -----
-#define Red_ON PORTD |= 0b00010000 // LED Red On
-#define Red_Off PORTD &= 0b11101111 //LED red Off
-#define Green_ON PORTD |= 0b00001000 // Green Red On
-#define Green_Off PORTD &= 0b11110111 //Green red Off
+#define Red_ON PORTD |= 0b00010000 // Red LED On
+#define Red_Off PORTD &= 0b11101111 //Red LED Off
+#define Green_ON PORTD |= 0b00001000 // Green LED On
+#define Green_Off PORTD &= 0b11110111 //Green LED Off
 #define Lock_ON PORTD |= 0b00000010 // Lock Power On
 #define Lock_Off PORTD &= 0b11111101 //Lock Power Off
 
@@ -21,8 +21,7 @@ void open_lock(){
 	_delay_ms(100);
 	Green_ON;
 	Lock_Off;
-	_delay_ms(500);
-	_delay_ms(1000);
+	_delay_ms(1500);
 	Green_Off;
 	_delay_ms(4500);
 	Lock_ON;
@@ -32,8 +31,7 @@ void open_lock(){
 void access_denied(){ // lock is still closed
 	_delay_ms(100);
 	Red_ON;
-	_delay_ms(150);
-	_delay_ms(500);
+	_delay_ms(650);
 	Red_Off;
 	_delay_ms(100);
 }
@@ -74,12 +72,12 @@ void save_card(uchar *card_num){
 	int ee_check;
 	while(1){
 		ee_check = EEPROM_read(0x000 + 5 + i);
-		if (ee_check == 0xff){
+		if (ee_check == 0xff){ // check if memory cell is empty
 			break;
 		}
-		i+=5;
+		i += 5; // if not, skip 5 cells (card id size in memory)
 	}
-	for (j=0; j < 5; j++) // 5 - размер записываемого массива
+	for (j=0; j < 5; j++) // saving card in memory
 	{
 		EEPROM_write(0x000 + 5 + i + j, card_num[j]);
 	}
@@ -92,23 +90,23 @@ bool read_card(uchar *card_num){
 	int count;
 	int i = 0;
 	int j;
-	while(1){
-		ee_check = EEPROM_read(0x000 + 5 + i);
-		if(ee_check != 0xff){
+	while(1){ // iterate over all saved cards
+		ee_check = EEPROM_read(0x000 + 5 + i); // first five cells are reserved by master
+		if(ee_check != 0xff){ // memory cell isn't empty
 			for (count = 0; count < 5; count++)
 			{
-				ee_check = EEPROM_read(0x000 + 5 + i);
+				ee_check = EEPROM_read(0x000 + 5 + i); // reading card number from memory
 				saved_card[count] = ee_check;
 				i++;
 			}
-			for (j = 0; j < 5; j++ ) {
+			for (j = 0; j < 5; j++ ) { // checking if saved card id match scanned card id
 				if (saved_card[j] == card_num[j])
 				{
 					if(j == 4){
-						return access = true;
+						return access = true; // card is in memory
 					}
 				}
-				else {
+				else { 
 					break;
 				}
 			}
@@ -130,13 +128,13 @@ bool master_operations(uchar *card_num, uchar* master_card, bool *empty_memory){
 			Green_Off;
 			Red_Off;
 			while(1){
-				if ( MFRC522_Request( PICC_REQIDL, card_num ) == MI_OK ) {
+				if ( MFRC522_Request( PICC_REQIDL, card_num ) == MI_OK ) { // scanning cards
 					if ( MFRC522_Anticoll( card_num ) == MI_OK ) {
-						break;
+						break; // card is scanned - break cycle
 					}
 				}
 			}
-			for (int i = 0; i < 5; i++ ) {
+			for (int i = 0; i < 5; i++ ) { // checking if scanned card is master -
 				if (master_card[i]==card_num[i])
 				{
 					if(i==4)
@@ -149,60 +147,49 @@ bool master_operations(uchar *card_num, uchar* master_card, bool *empty_memory){
 					break;
 				}
 			}
-			if (master_attached == true)
+			if (master_attached == true) // - is master, clearing card memory (including master)
 			{
-				int j = 0;
+				int j = 0; // memory iterator
 				int ee_check;
 				while(1){
 					ee_check = EEPROM_read(0x000 + j);
-					if (ee_check != 0xff){
-						EEPROM_write(0x000 + j, 0xff);
-						j++;
+					if (ee_check != 0xff){ // checking if memory cell isn't empty
+						EEPROM_write(0x000 + j, 0xff); //  write 0xff in it
+						j++; // increment cell number
 					}
 					else
 					{
-						_delay_ms(500);
-						Red_ON;
-						Green_ON;
-						_delay_ms(500);
-						Red_Off;
-						Green_Off;
-						_delay_ms(500);
-						Red_ON;
-						Green_ON;
-						_delay_ms(500);
-						Red_Off;
-						Green_Off;
-						_delay_ms(500);
-						Red_ON;
-						Green_ON;
-						_delay_ms(500);
-						Red_Off;
-						Green_Off;
-						_delay_ms(500);
+						_delay_ms(800);
+						for (int a = 0; a < 3; a++){ // blink red and green led 3 times
+							Red_ON;
+							Green_ON;
+							_delay_ms(500);
+							Red_Off;
+							Green_Off;
+							_delay_ms(500);
+						}
+						_delay_ms(800);
 						*empty_memory = true;
 						return master_attached;
 					}
 				}
 			}
-			else if (master_attached == false){
+			else if (master_attached == false){ // - not the master card, return from function
 				_delay_ms(500);
-				Red_ON;
-				_delay_ms(500);
-				Red_Off;
-				_delay_ms(500);
-				Red_ON;
-				_delay_ms(500);
-				Red_Off;
-				_delay_ms(500);
+				for (int a = 0; a < 2; a++){ // blink red led 2 times					
+					Red_ON;
+					_delay_ms(500);
+					Red_Off;
+					_delay_ms(500);
+				}
 				return master_attached = true;
 			}
 		}
-		else if ( MFRC522_Request( PICC_REQIDL, card_num ) == MI_OK ) {
+		else if ( MFRC522_Request( PICC_REQIDL, card_num ) == MI_OK ) { // scanning cards
 			if ( MFRC522_Anticoll( card_num ) == MI_OK ) {
 				Green_Off;
 				Red_Off;
-				for (int i = 0; i < 5; i++ ) {
+				for (int i = 0; i < 5; i++ ) { // checking if scanned card is master
 					if (master_card[i]==card_num[i])
 					{
 						if (i == 4){
@@ -211,7 +198,6 @@ bool master_operations(uchar *card_num, uchar* master_card, bool *empty_memory){
 						}
 					}
 					else {
-						//read_card(card_num);
 						return master_attached = false;
 					}
 				}
@@ -220,43 +206,36 @@ bool master_operations(uchar *card_num, uchar* master_card, bool *empty_memory){
 	}
 }
 
-void check_for_master(uchar *card_num, uchar *master_card){
-	if (EEPROM_read(0x000)!=0xff)
+void check_for_master(uchar *card_num, uchar *master_card){ // checking if master card is already in memory
+	if (EEPROM_read(0x000) != 0xff) // if first memory cell isn't empty -
 	{
-		for (int i=0; i<5; i++)
+		for (int i = 0; i < 5; i++)
 		{
-			master_card[i] = EEPROM_read(0x000 + i);
+			master_card[i] = EEPROM_read(0x000 + i); // - read first 5 cells as master card id
 		}
 	}
-	else{
+	else{ // - else, wait for master card to be attached
 		while(1) {
 			Red_ON;
 			Green_ON;
 			_delay_ms(250);
-			if ( MFRC522_Request( PICC_REQIDL, card_num ) == MI_OK ) {
+			if ( MFRC522_Request( PICC_REQIDL, card_num ) == MI_OK ) { // scanning cards
 				if ( MFRC522_Anticoll( card_num ) == MI_OK ) {
 					Red_Off;
 					Green_Off;
-					int j;
 					while(1){
-						for (j=0; j < 5; j++) // 5 - размер записываемого массива
+						for (int j=0; j < 5; j++) // 5 - array size
 						{
-							EEPROM_write(0x000 + j, card_num[j]);
-							master_card[j] = card_num[j];
+							EEPROM_write(0x000 + j, card_num[j]); // saving master card id in memory
+							master_card[j] = card_num[j]; // setting recently scanned card as master
 						}
 						_delay_ms(1000);
-						Green_ON;
-						_delay_ms(500);
-						Green_Off;
-						_delay_ms(500);
-						Green_ON;
-						_delay_ms(500);
-						Green_Off;
-						_delay_ms(500);
-						Green_ON;
-						_delay_ms(500);
-						Green_Off;
-						_delay_ms(500);
+						for (int a = 0; a < 3; a++){ // blink green LED 3 times
+							Green_ON;
+							_delay_ms(500);
+							Green_Off;
+							_delay_ms(500);
+						}
 						return;
 					}
 				}
@@ -270,27 +249,26 @@ void check_for_master(uchar *card_num, uchar *master_card){
 
 void master_menu(uchar *card_num, uchar *master_card){
 	cli();
-	Lock_Off;
+	Lock_Off; // open lock
 	bool empty_memory = false;
 	bool master_attached;
 	_delay_ms(100);
 	while(1){
-		master_attached = master_operations(card_num, master_card, &empty_memory);
-		if(empty_memory == true){
+		master_attached = master_operations(card_num, master_card, &empty_memory); 
+		if(empty_memory == true){ // memory is empty - wait for new master card
 			check_for_master(card_num, master_card);
-			empty_memory = false;
+			empty_memory = false; // memory isn't empty
 			break;
 		}
-		else if (master_attached == true){
-			break;
+		else if (master_attached == true){ // in the master_operations there was an operation with the master card
+			break;					       // return from function
 		}
-		else if (master_attached == false){
-			bool access = read_card(card_num);
-			if (access == true){ // card already in saved in memory
+		else if (master_attached == false){ // in the master_operations there was a regular card attached
+			bool access = read_card(card_num); // checking if card isn't saved in memory
+			if (access == true){ // card already in saved in memory, do nothing
 				Red_Off;
 				Green_Off;
-				_delay_ms(500);
-				_delay_ms(100);
+				_delay_ms(600);
 				Red_ON;
 				_delay_ms(1500);
 				Red_Off;
@@ -300,7 +278,7 @@ void master_menu(uchar *card_num, uchar *master_card){
 				Red_Off;
 				Green_Off;
 				_delay_ms(500);
-				save_card(card_num);
+				save_card(card_num); // saving card
 				_delay_ms(100);
 				Green_ON;
 				_delay_ms(1500);
@@ -309,13 +287,13 @@ void master_menu(uchar *card_num, uchar *master_card){
 			}
 		}
 	}
-	Lock_ON;
+	Lock_ON; // closing lock
 	sei();
 }
 
 void card_handle(uchar *card_num, uchar *master_card){
 	bool access;
-	for (int i = 0; i < 5; i++ ) {
+	for (int i = 0; i < 5; i++ ) { // checking if scanned card is master
 		if (master_card[i]==card_num[i])
 		{
 			if(i == 4){
@@ -327,15 +305,15 @@ void card_handle(uchar *card_num, uchar *master_card){
 			break;
 		}
 	}
-	if (access == true){
+	if (access == true){ // card is master, go to settings
 		master_menu(card_num, master_card);
 	}
-	else{						//if (access == false)
-		access = read_card(card_num);
-		if(access == true){
+	else{
+		access = read_card(card_num); // checking if card if is allowed
+		if(access == true){ // card allowed - open lock
 			open_lock();
-		}
-		else if (access == false){
+		} // lock is still closed
+		else {
 			access_denied();
 		}
 	}
@@ -343,7 +321,7 @@ void card_handle(uchar *card_num, uchar *master_card){
 
 void scan_card(uchar *card_num, uchar *master_card){
 	while(1) {
-		if ( MFRC522_Request( PICC_REQIDL, card_num ) == MI_OK ) {
+		if ( MFRC522_Request( PICC_REQIDL, card_num ) == MI_OK ) { // scanning cards
 			if ( MFRC522_Anticoll( card_num ) == MI_OK ) {
 				card_handle(card_num, master_card);
 			}
@@ -354,7 +332,7 @@ void scan_card(uchar *card_num, uchar *master_card){
 
 //==========================< Main Programm >==================================
 
-ISR(INT0_vect){
+ISR(INT0_vect){ // open lock when button is pressed
 	cli();
 	open_lock();
 	sei();
